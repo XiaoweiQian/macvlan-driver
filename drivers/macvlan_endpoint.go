@@ -56,10 +56,6 @@ func (d *Driver) CreateEndpoint(r *pluginNet.CreateEndpointRequest) (*pluginNet.
 		return nil, fmt.Errorf("create endpoint was not passed interface IP address")
 	}
 
-	if s := n.getSubnetforIP(ep.addr); s == nil {
-		return nil, fmt.Errorf("no matching subnet for IP %q in network %q", ep.addr, ep.nid)
-	}
-
 	if ep.mac == nil {
 		ep.mac = netutils.GenerateMACFromIP(ep.addr.IP)
 		intf.MacAddress = ep.mac.String()
@@ -85,7 +81,7 @@ func (d *Driver) CreateEndpoint(r *pluginNet.CreateEndpointRequest) (*pluginNet.
 	}
 
 	if err := d.storeUpdate(ep); err != nil {
-		return fmt.Errorf("failed to save macvlan endpoint %s to store: %v", ep.id[0:7], err)
+		return nil, fmt.Errorf("failed to save macvlan endpoint %s to store: %v", ep.id[0:7], err)
 	}
 
 	n.addEndpoint(ep)
@@ -131,4 +127,13 @@ func (d *Driver) deleteEndpoint(n *network, ep *endpoint) error {
 	n.deleteEndpoint(ep.id)
 
 	return nil
+}
+
+// EndpointInfo ...
+func (d *Driver) EndpointInfo(r *pluginNet.InfoRequest) (*pluginNet.InfoResponse, error) {
+	logrus.Debugf("EndpointInfo macvlan")
+	res := &pluginNet.InfoResponse{
+		Value: make(map[string]string),
+	}
+	return res, nil
 }

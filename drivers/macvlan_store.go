@@ -172,51 +172,6 @@ func (config *configuration) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (config *configuration) Value() []byte {
-	b, err := json.Marshal(config)
-	if err != nil {
-		return nil
-	}
-
-	return b
-}
-
-func (config *configuration) SetValue(value []byte) error {
-	return json.Unmarshal(value, config)
-}
-
-func (config *configuration) Index() uint64 {
-	return config.dbIndex
-}
-
-func (config *configuration) SetIndex(index uint64) {
-	config.dbIndex = index
-	config.dbExists = true
-}
-
-func (config *configuration) Exists() bool {
-	return config.dbExists
-}
-
-func (config *configuration) Skip() bool {
-	return false
-}
-
-func (config *configuration) New() datastore.KVObject {
-	return &configuration{}
-}
-
-func (config *configuration) CopyTo(o datastore.KVObject) error {
-	dstNcfg := o.(*configuration)
-	*dstNcfg = *config
-
-	return nil
-}
-
-func (config *configuration) DataScope() string {
-	return datastore.LocalScope
-}
-
 func (ep *endpoint) MarshalJSON() ([]byte, error) {
 	epMap := make(map[string]interface{})
 	epMap["id"] = ep.id

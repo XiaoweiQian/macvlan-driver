@@ -3,12 +3,12 @@ package netutils
 import (
 	"crypto/rand"
 	"encoding/hex"
-	"fmt"
 	"io"
 	"net"
 	"strings"
 
 	"github.com/Sirupsen/logrus"
+	"github.com/docker/libnetwork/types"
 	"github.com/vishvananda/netlink"
 )
 
@@ -55,13 +55,17 @@ func GenerateRandomName(prefix string, size int) (string, error) {
 // GenerateIfaceName returns an interface name using the passed in
 // prefix and the length of random bytes. The api ensures that the
 // there are is no interface which exists with that name.
-func GenerateIfaceName(prefix string, len int) (string, error) {
+func GenerateIfaceName(nlh *netlink.Handle, prefix string, len int) (string, error) {
+	linkByName := netlink.LinkByName
+	if nlh != nil {
+		linkByName = nlh.LinkByName
+	}
 	for i := 0; i < 3; i++ {
 		name, err := GenerateRandomName(prefix, len)
 		if err != nil {
 			continue
 		}
-		_, err = netlink.LinkByName(name)
+		_, err = linkByName(name)
 		if err != nil {
 			if strings.Contains(err.Error(), "not found") {
 				return name, nil
@@ -69,7 +73,7 @@ func GenerateIfaceName(prefix string, len int) (string, error) {
 			return "", err
 		}
 	}
-	return "", fmt.Errorf("could not generate interface name")
+	return "", types.InternalErrorf("could not generate interface name")
 }
 
 // SetInterfaceIP  Set IP address of an interface

@@ -2,13 +2,13 @@ package drivers
 
 import (
 	"fmt"
-	"net"
 	"sync"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/docker/docker/pkg/stringid"
 	pluginNet "github.com/docker/go-plugins-helpers/network"
 	"github.com/docker/libnetwork/datastore"
+	"github.com/docker/libnetwork/netlabel"
 	"github.com/docker/libnetwork/osl"
 	docker "github.com/fsouza/go-dockerclient"
 )
@@ -88,18 +88,28 @@ func (d *Driver) AllocateNetwork(r *pluginNet.AllocateNetworkRequest) (*pluginNe
 	}
 
 	// reject a null v4 network
-	if len(ipV4Data) == 0 || ipV4Data[0].Pool.String() == "0.0.0.0/0" {
+	if len(ipV4Data) == 0 || ipV4Data[0].Pool == "0.0.0.0/0" {
 		return nil, fmt.Errorf("ipv4 pool is empty")
 	}
 
+	options := make(map[string]interface{})
+	options[netlabel.GenericData] = opts
 	// parse and validate the config and bind to networkConfiguration
-	config, err := parseNetworkOptions(id, opts)
+	config, err := parseNetworkOptions(id, options)
 	if err != nil {
 		return nil, err
 	}
 
 	config.ID = id
-	err = config.processIPAM(id, ipV4Data, ipV6Data)
+	ipv4 := []*pluginNet.IPAMData{}
+	ipv6 := []*pluginNet.IPAMData{}
+	for _, ipd := range ipV4Data {
+		ipv4 = append(ipv4, &ipd)
+	}
+	for _, ipd := range ipV6Data {
+		ipv6 = append(ipv6, &ipd)
+	}
+	err = config.processIPAM(id, ipv4, ipv6)
 	if err != nil {
 		return nil, err
 	}
@@ -173,33 +183,4 @@ func (d *Driver) ProgramExternalConnectivity(r *pluginNet.ProgramExternalConnect
 func (d *Driver) RevokeExternalConnectivity(r *pluginNet.RevokeExternalConnectivityRequest) error {
 	logrus.Debugf("RevokeExternalConnectivity macvlan")
 	return nil
-}
-
-// getSubnetforIP returns the subnet to which the given IP belongs
-func (n *network) getSubnetforIP(ip *net.IPNet) *subnet {
-	for _, s := range n.subnets {
-		// first check if the mask lengths are the same
-		i, _ := s.subnetIP.Mask.Size()
-		j, _ := ip.Mask.Size()
-		if i != j {
-			continue
-		}
-		if s.subnetIP.Contains(ip.IP) {
-			return s
-		}
-		i
-	}
-	return nil
-}
-
-func (n *network) addEndpoint(ep *endpoint) {
-	n.Lock()
-	n.endpoints[ep.id] = ep
-	n.Unlock()
-}
-
-func (n *network) deleteEndpoint(eid string) {
-	n.Lock()
-	delete(n.endpoints, eid)
-	n.Unlock()
 }

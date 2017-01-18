@@ -9,6 +9,7 @@ import (
 	"github.com/docker/docker/pkg/stringid"
 	pluginNet "github.com/docker/go-plugins-helpers/network"
 	"github.com/docker/libnetwork/netlabel"
+	"github.com/docker/libnetwork/ns"
 	"github.com/docker/libnetwork/options"
 	"github.com/docker/libnetwork/osl"
 	"github.com/docker/libnetwork/types"
@@ -40,7 +41,7 @@ func (d *Driver) CreateNetwork(r *pluginNet.CreateNetworkRequest) error {
 	}
 
 	// reject a null v4 network
-	if len(ipV4Data) == 0 || ipV4Data[0].Pool.String() == "0.0.0.0/0" {
+	if len(ipV4Data) == 0 || ipV4Data[0].Pool == "0.0.0.0/0" {
 		return fmt.Errorf("ipv4 pool is empty")
 	}
 
@@ -82,13 +83,6 @@ func (d *Driver) CreateNetwork(r *pluginNet.CreateNetworkRequest) error {
 
 	err = d.createNetwork(config)
 	if err != nil {
-		return err
-	}
-	// update persistent db, rollback on fail
-	err = d.storeUpdate(config)
-	if err != nil {
-		d.deleteNetwork(config.ID)
-		logrus.Debugf("encoutered an error rolling back a network create for %s : %v", config.ID, err)
 		return err
 	}
 
@@ -185,16 +179,11 @@ func (d *Driver) DeleteNetwork(r *pluginNet.DeleteNetworkRequest) error {
 	}
 	// delete the *network
 	d.deleteNetwork(nid)
-	// delete the network record from persistent cache
-	err := d.storeDelete(n.config)
-	if err != nil {
-		return fmt.Errorf("error deleting deleting id %s from datastore: %v", nid, err)
-	}
 	return nil
 }
 
 // parseNetworkOptions parses docker network options
-func parseNetworkOptions(id string, option options.Generic) (*configuration, error) {
+func parseNetworkOptions(id string, option map[string]interface{}) (*configuration, error) {
 	var (
 		err    error
 		config = &configuration{}
@@ -280,7 +269,7 @@ func (config *configuration) processIPAM(id string, ipamV4Data, ipamV6Data []*pl
 }
 
 // processIPAM parses v4 and v6 IP information and binds it to the network configuration
-func (config *configuration) processIPAMFromSwarm(id string, ipam []*docker.IPAMConfig) error {
+func (config *configuration) processIPAMFromSwarm(id string, ipam []docker.IPAMConfig) error {
 	if len(ipam) > 0 {
 		for _, ipd := range ipam {
 			_, subnetIP, _ := net.ParseCIDR(ipd.IPRange)
@@ -292,7 +281,7 @@ func (config *configuration) processIPAMFromSwarm(id string, ipam []*docker.IPAM
 				config.Ipv4Subnets = append(config.Ipv4Subnets, s)
 			} else {
 				s := &ipv6Subnet{
-					SubnetIP: ipd.Pool,
+					SubnetIP: ipd.IPRange,
 					GwIP:     ipd.Gateway,
 				}
 				config.Ipv6Subnets = append(config.Ipv6Subnets, s)

@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/Sirupsen/logrus"
+	"github.com/docker/libnetwork/netlabel"
 	"github.com/docker/libnetwork/osl"
 	"github.com/docker/libnetwork/types"
 )
@@ -128,8 +129,10 @@ func (d *Driver) getNetworkFromSwarm(nid string) *network {
 	}
 	subnets := nw.IPAM.Config
 	opts := nw.Options
+	options := make(map[string]interface{})
+	options[netlabel.GenericData] = opts
 	// parse and validate the config and bind to networkConfiguration
-	config, err := parseNetworkOptions(nid, opts)
+	config, err := parseNetworkOptions(nid, options)
 	if err != nil {
 		return nil
 	}
