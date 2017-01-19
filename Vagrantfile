@@ -16,6 +16,7 @@ Vagrant.configure("2") do |config|
   config.ssh.username = 'root'
   config.ssh.insert_key = 'false'
   config.vm.synced_folder ".", "/opt/gocode/src/github.com/XiaoweiQian/macvlan-driver"
+  config.vm.synced_folder "~/gocode/src/github.com/docker/docker", "/opt/gocode/src/github.com/docker/docker"
 
   # Disable automatic box update checking. If you disable this, then
   # boxes will only be checked for updates when the user runs

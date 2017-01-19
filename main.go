@@ -11,7 +11,7 @@ import (
 
 const (
 	version     = "0.1"
-	networkType = "macvlan"
+	networkType = "macvlan_swarm"
 )
 
 func main() {
