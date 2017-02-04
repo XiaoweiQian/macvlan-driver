@@ -35,15 +35,6 @@ func TestGenerateRandomName(t *testing.T) {
 	assert.NotEqual(t, name, name1)
 }
 
-func TestGenerateIfaceName(t *testing.T) {
-	prefix := "eth"
-	size := 7
-	eth1, err := GenerateIfaceName(prefix, size)
-	eth2, _ := GenerateIfaceName(prefix, size)
-	assert.Nil(t, err)
-	assert.Not(t, eth1, eth2)
-}
-
 func TestCreateVethPair(t *testing.T) {
 	name1 := "veth1"
 	name2 := "veth2"

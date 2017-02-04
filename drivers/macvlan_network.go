@@ -48,6 +48,7 @@ func (d *Driver) CreateNetwork(r *pluginNet.CreateNetworkRequest) error {
 	// parse and validate the config and bind to networkConfiguration
 	config, err := parseNetworkOptions(id, opts)
 	if err != nil {
+		logrus.Debugf("ERROR: CreateNetwork opts is invalid %s", opts)
 		return err
 	}
 
@@ -83,6 +84,7 @@ func (d *Driver) CreateNetwork(r *pluginNet.CreateNetworkRequest) error {
 
 	err = d.createNetwork(config)
 	if err != nil {
+		logrus.Debugf("Error:CreateNetwork %s", err.Error())
 		return err
 	}
 
@@ -91,13 +93,6 @@ func (d *Driver) CreateNetwork(r *pluginNet.CreateNetworkRequest) error {
 
 // createNetwork is used by new network callbacks and persistent network cache
 func (d *Driver) createNetwork(config *configuration) error {
-	networkList := d.getNetworks()
-	for _, nw := range networkList {
-		if config.Parent == nw.config.Parent {
-			return fmt.Errorf("network %s is already using parent interface %s",
-				getDummyName(stringid.TruncateID(nw.config.ID)), config.Parent)
-		}
-	}
 	if !parentExists(config.Parent) {
 		// if the --internal flag is set, create a dummy link
 		if config.Internal {
@@ -216,6 +211,9 @@ func parseNetworkGenericOptions(data interface{}) (*configuration, error) {
 	case map[string]string:
 		config = &configuration{}
 		err = config.fromOptions(opt)
+	case map[string]interface{}:
+		config = &configuration{}
+		err = config.fromOptions2(opt)
 	case options.Generic:
 		var opaqueConfig interface{}
 		if opaqueConfig, err = options.GenerateFromModel(opt, config); err == nil {
@@ -238,6 +236,21 @@ func (config *configuration) fromOptions(labels map[string]string) error {
 		case driverModeOpt:
 			// parse driver option '-o macvlan_mode'
 			config.MacvlanMode = value
+		}
+	}
+
+	return nil
+}
+
+func (config *configuration) fromOptions2(labels map[string]interface{}) error {
+	for label, value := range labels {
+		switch label {
+		case parentOpt:
+			// parse driver option '-o parent'
+			config.Parent = value.(string)
+		case driverModeOpt:
+			// parse driver option '-o macvlan_mode'
+			config.MacvlanMode = value.(string)
 		}
 	}
 
@@ -272,16 +285,17 @@ func (config *configuration) processIPAM(id string, ipamV4Data, ipamV6Data []*pl
 func (config *configuration) processIPAMFromSwarm(id string, ipam []docker.IPAMConfig) error {
 	if len(ipam) > 0 {
 		for _, ipd := range ipam {
-			_, subnetIP, _ := net.ParseCIDR(ipd.IPRange)
+			logrus.Debugf("Load from swarm ,sub=%s", ipd)
+			_, subnetIP, _ := net.ParseCIDR(ipd.Subnet)
 			if subnetIP.IP.To4() != nil {
 				s := &ipv4Subnet{
-					SubnetIP: ipd.IPRange,
+					SubnetIP: ipd.Subnet,
 					GwIP:     ipd.Gateway,
 				}
 				config.Ipv4Subnets = append(config.Ipv4Subnets, s)
 			} else {
 				s := &ipv6Subnet{
-					SubnetIP: ipd.IPRange,
+					SubnetIP: ipd.Subnet,
 					GwIP:     ipd.Gateway,
 				}
 				config.Ipv6Subnets = append(config.Ipv6Subnets, s)

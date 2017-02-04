@@ -114,6 +114,25 @@ func (d *Driver) AllocateNetwork(r *pluginNet.AllocateNetworkRequest) (*pluginNe
 		return nil, err
 	}
 
+	// verify the macvlan mode from -o macvlan_mode option
+	switch config.MacvlanMode {
+	case "", modeBridge:
+		// default to macvlan bridge mode if -o macvlan_mode is empty
+		config.MacvlanMode = modeBridge
+	case modePrivate:
+		config.MacvlanMode = modePrivate
+	case modePassthru:
+		config.MacvlanMode = modePassthru
+	case modeVepa:
+		config.MacvlanMode = modeVepa
+	default:
+		return nil, fmt.Errorf("requested macvlan mode '%s' is not valid, 'bridge' mode is the macvlan driver default", config.MacvlanMode)
+	}
+	// loopback is not a valid parent link
+	if config.Parent == "lo" {
+		return nil, fmt.Errorf("loopback interface is not a valid %s parent link", macvlanType)
+	}
+
 	networkList := d.getNetworks()
 	for _, nw := range networkList {
 		if config.Parent == nw.config.Parent {
@@ -150,7 +169,7 @@ func (d *Driver) FreeNetwork(r *pluginNet.FreeNetworkRequest) error {
 	d.Unlock()
 
 	if !ok {
-		logrus.Debugf("macvlan network with id %s not found", id)
+		logrus.Warnf("macvlan network with id %s not found", id)
 		return nil
 	}
 

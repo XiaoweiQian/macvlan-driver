@@ -33,6 +33,7 @@ func (d *Driver) Join(r *pluginNet.JoinRequest) (*pluginNet.JoinResponse, error)
 	// create the netlink macvlan interface
 	vethName, err := createMacVlan(containerIfName, n.config.Parent, n.config.MacvlanMode)
 	if err != nil {
+		logrus.Debugf("Join: createMacVlan error:", err.Error())
 		return nil, err
 	}
 	// bind the generated iface name to the endpoint

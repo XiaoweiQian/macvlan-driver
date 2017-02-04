@@ -26,7 +26,7 @@ type endpoint struct {
 
 // CreateEndpoint assigns the mac, ip and endpoint id for the new container
 func (d *Driver) CreateEndpoint(r *pluginNet.CreateEndpointRequest) (*pluginNet.CreateEndpointResponse, error) {
-	logrus.Debugf("CreateEndpoint macvlan")
+	logrus.Debugf("CreateEndpoint macvlan : interface info %s", r.Interface)
 	defer osl.InitOSContext()()
 	networkID := r.NetworkID
 	if networkID == "" {
@@ -44,13 +44,22 @@ func (d *Driver) CreateEndpoint(r *pluginNet.CreateEndpointRequest) (*pluginNet.
 	if !ok {
 		return nil, fmt.Errorf("macvlan network with id %s not found", networkID)
 	}
-	_, addr, _ := net.ParseCIDR(intf.Address)
+	var addrNet, addrv6Net *net.IPNet
+	addr, mask, _ := net.ParseCIDR(intf.Address)
+	if addr != nil && mask != nil {
+		addrNet = &net.IPNet{IP: addr, Mask: mask.Mask}
+	}
+	addrv6, maskv6, _ := net.ParseCIDR(intf.AddressIPv6)
+	if addrv6 != nil && maskv6 != nil {
+		addrv6Net = &net.IPNet{IP: addrv6, Mask: maskv6.Mask}
+	}
 	mac, _ := net.ParseMAC(intf.MacAddress)
 	ep := &endpoint{
-		id:   endpointID,
-		nid:  networkID,
-		addr: addr,
-		mac:  mac,
+		id:     endpointID,
+		nid:    networkID,
+		addr:   addrNet,
+		addrv6: addrv6Net,
+		mac:    mac,
 	}
 	if ep.addr == nil {
 		return nil, fmt.Errorf("create endpoint was not passed interface IP address")
@@ -59,6 +68,7 @@ func (d *Driver) CreateEndpoint(r *pluginNet.CreateEndpointRequest) (*pluginNet.
 	if ep.mac == nil {
 		ep.mac = netutils.GenerateMACFromIP(ep.addr.IP)
 		intf.MacAddress = ep.mac.String()
+		logrus.Debugf("CreateEndpoint: generate mac ip=%s,mac=%s,eth=%s", ep.addr.IP.String(), ep.mac.String())
 	}
 
 	epOptions := r.Options
