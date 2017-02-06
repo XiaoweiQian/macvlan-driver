@@ -37,7 +37,8 @@ func Run(ctx *cli.Context) {
 		logrus.SetLevel(logrus.DebugLevel)
 	}
 
-	d, err := drivers.Init()
+	ms := &drivers.MacvlanStore{}
+	d, err := drivers.Init(ms)
 	if err != nil {
 		panic(err)
 	}

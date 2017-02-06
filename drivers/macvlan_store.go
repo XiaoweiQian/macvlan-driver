@@ -3,18 +3,25 @@ package drivers
 import (
 	"encoding/json"
 	"fmt"
-	"net"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/docker/libkv/store/boltdb"
 	"github.com/docker/libnetwork/datastore"
-	"github.com/docker/libnetwork/types"
 )
 
-const (
-	macvlanPrefix         = "macvlan"
-	macvlanEndpointPrefix = macvlanPrefix + "/endpoint"
-)
+//MacStore ...
+type MacStore interface {
+	InitStore(d *Driver) error
+	PopulateEndpoints() error
+	StoreUpdate(kvObject datastore.KVObject) error
+	StoreDelete(kvObject datastore.KVObject) error
+}
+
+//MacvlanStore ...
+type MacvlanStore struct {
+	store  datastore.DataStore
+	driver *Driver
+}
 
 // networkConfiguration for this driver's network specific configuration
 type configuration struct {
@@ -40,23 +47,25 @@ type ipv6Subnet struct {
 	GwIP     string
 }
 
-// initStore drivers are responsible for caching their own persistent state
-func (d *Driver) initStore() error {
+// InitStore drivers are responsible for caching their own persistent state
+func (ms *MacvlanStore) InitStore(d *Driver) error {
 	// initiate the boltdb
 	boltdb.Register()
 	var err error
-	d.store, err = datastore.NewDataStore(datastore.LocalScope, nil)
+	ms.store, err = datastore.NewDataStore(datastore.LocalScope, nil)
+	ms.driver = d
 	if err != nil {
 		return fmt.Errorf("could not init macvlan local store. Error: %s", err)
 	}
-	if err = d.populateEndpoints(); err != nil {
+	if err = ms.PopulateEndpoints(); err != nil {
 		logrus.Debugf("Failure during macvlan endpoints populate: %v", err)
 	}
 	return nil
 }
 
-func (d *Driver) populateEndpoints() error {
-	kvol, err := d.store.List(datastore.Key(macvlanEndpointPrefix), &endpoint{})
+// PopulateEndpoints ...
+func (ms *MacvlanStore) PopulateEndpoints() error {
+	kvol, err := ms.store.List(datastore.Key(macvlanEndpointPrefix), &endpoint{})
 	if err != nil && err != datastore.ErrKeyNotFound {
 		return fmt.Errorf("failed to get macvlan endpoints from store: %v", err)
 	}
@@ -68,11 +77,11 @@ func (d *Driver) populateEndpoints() error {
 
 	for _, kvo := range kvol {
 		ep := kvo.(*endpoint)
-		n := d.network(ep.nid)
+		n := ms.driver.network(ep.nid)
 		if n == nil {
 			logrus.Debugf("Network (%s) not found for restored macvlan endpoint (%s)", ep.nid[0:7], ep.id[0:7])
 			logrus.Debugf("Deleting stale macvlan endpoint (%s) from store", ep.id[0:7])
-			if err := d.storeDelete(ep); err != nil {
+			if err := ms.StoreDelete(ep); err != nil {
 				logrus.Debugf("Failed to delete stale macvlan endpoint (%s) from store", ep.id[0:7])
 			}
 			continue
@@ -84,29 +93,29 @@ func (d *Driver) populateEndpoints() error {
 	return nil
 }
 
-// storeUpdate used to update persistent macvlan network records as they are created
-func (d *Driver) storeUpdate(kvObject datastore.KVObject) error {
-	if d.store == nil {
+// StoreUpdate used to update persistent macvlan network records as they are created
+func (ms *MacvlanStore) StoreUpdate(kvObject datastore.KVObject) error {
+	if ms.store == nil {
 		logrus.Warnf("macvlan store not initialized. kv object %s is not added to the store", datastore.Key(kvObject.Key()...))
 		return nil
 	}
-	if err := d.store.PutObjectAtomic(kvObject); err != nil {
+	if err := ms.store.PutObjectAtomic(kvObject); err != nil {
 		return fmt.Errorf("failed to update macvlan store for object type %T: %v", kvObject, err)
 	}
 
 	return nil
 }
 
-// storeDelete used to delete macvlan records from persistent cache as they are deleted
-func (d *Driver) storeDelete(kvObject datastore.KVObject) error {
-	if d.store == nil {
+// StoreDelete used to delete macvlan records from persistent cache as they are deleted
+func (ms *MacvlanStore) StoreDelete(kvObject datastore.KVObject) error {
+	if ms.store == nil {
 		logrus.Debugf("macvlan store not initialized. kv object %s is not deleted from store", datastore.Key(kvObject.Key()...))
 		return nil
 	}
 retry:
-	if err := d.store.DeleteObjectAtomic(kvObject); err != nil {
+	if err := ms.store.DeleteObjectAtomic(kvObject); err != nil {
 		if err == datastore.ErrKeyModified {
-			if err := d.store.GetObject(datastore.Key(kvObject.Key()...), kvObject); err != nil {
+			if err := ms.store.GetObject(datastore.Key(kvObject.Key()...), kvObject); err != nil {
 				return fmt.Errorf("could not update the kvobject to latest when trying to delete: %v", err)
 			}
 			goto retry
@@ -170,104 +179,4 @@ func (config *configuration) UnmarshalJSON(b []byte) error {
 	}
 
 	return nil
-}
-
-func (ep *endpoint) MarshalJSON() ([]byte, error) {
-	epMap := make(map[string]interface{})
-	epMap["id"] = ep.id
-	epMap["nid"] = ep.nid
-	epMap["SrcName"] = ep.srcName
-	if len(ep.mac) != 0 {
-		epMap["MacAddress"] = ep.mac.String()
-	}
-	if ep.addr != nil {
-		epMap["Addr"] = ep.addr.String()
-	}
-	if ep.addrv6 != nil {
-		epMap["Addrv6"] = ep.addrv6.String()
-	}
-	return json.Marshal(epMap)
-}
-
-func (ep *endpoint) UnmarshalJSON(b []byte) error {
-	var (
-		err   error
-		epMap map[string]interface{}
-	)
-
-	if err = json.Unmarshal(b, &epMap); err != nil {
-		return fmt.Errorf("Failed to unmarshal to macvlan endpoint: %v", err)
-	}
-
-	if v, ok := epMap["MacAddress"]; ok {
-		if ep.mac, err = net.ParseMAC(v.(string)); err != nil {
-			return types.InternalErrorf("failed to decode macvlan endpoint MAC address (%s) after json unmarshal: %v", v.(string), err)
-		}
-	}
-	if v, ok := epMap["Addr"]; ok {
-		if ep.addr, err = types.ParseCIDR(v.(string)); err != nil {
-			return types.InternalErrorf("failed to decode macvlan endpoint IPv4 address (%s) after json unmarshal: %v", v.(string), err)
-		}
-	}
-	if v, ok := epMap["Addrv6"]; ok {
-		if ep.addrv6, err = types.ParseCIDR(v.(string)); err != nil {
-			return types.InternalErrorf("failed to decode macvlan endpoint IPv6 address (%s) after json unmarshal: %v", v.(string), err)
-		}
-	}
-	ep.id = epMap["id"].(string)
-	ep.nid = epMap["nid"].(string)
-	ep.srcName = epMap["SrcName"].(string)
-
-	return nil
-}
-
-func (ep *endpoint) Key() []string {
-	return []string{macvlanEndpointPrefix, ep.id}
-}
-
-func (ep *endpoint) KeyPrefix() []string {
-	return []string{macvlanEndpointPrefix}
-}
-
-func (ep *endpoint) Value() []byte {
-	b, err := json.Marshal(ep)
-	if err != nil {
-		return nil
-	}
-	return b
-}
-
-func (ep *endpoint) SetValue(value []byte) error {
-	return json.Unmarshal(value, ep)
-}
-
-func (ep *endpoint) Index() uint64 {
-	return ep.dbIndex
-}
-
-func (ep *endpoint) SetIndex(index uint64) {
-	ep.dbIndex = index
-	ep.dbExists = true
-}
-
-func (ep *endpoint) Exists() bool {
-	return ep.dbExists
-}
-
-func (ep *endpoint) Skip() bool {
-	return false
-}
-
-func (ep *endpoint) New() datastore.KVObject {
-	return &endpoint{}
-}
-
-func (ep *endpoint) CopyTo(o datastore.KVObject) error {
-	dstEp := o.(*endpoint)
-	*dstEp = *ep
-	return nil
-}
-
-func (ep *endpoint) DataScope() string {
-	return datastore.LocalScope
 }

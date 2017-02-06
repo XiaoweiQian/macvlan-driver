@@ -7,7 +7,6 @@ import (
 	"github.com/Sirupsen/logrus"
 	"github.com/docker/docker/pkg/stringid"
 	pluginNet "github.com/docker/go-plugins-helpers/network"
-	"github.com/docker/libnetwork/datastore"
 	"github.com/docker/libnetwork/netlabel"
 	"github.com/docker/libnetwork/osl"
 	docker "github.com/fsouza/go-dockerclient"
@@ -31,13 +30,14 @@ var driverModeOpt = macvlanType + modeOpt // mode --option macvlan_mode
 
 type endpointTable map[string]*endpoint
 
-type networkTable map[string]*network
+// NetworkTable ...
+type NetworkTable map[string]*network
 
 // Driver ...
 type Driver struct {
-	networks networkTable
-	store    datastore.DataStore
-	client   *docker.Client
+	Networks NetworkTable
+	Store    MacStore
+	Client   *docker.Client
 	sync.Once
 	sync.Mutex
 }
@@ -52,18 +52,23 @@ type network struct {
 }
 
 // Init macvlan remote driver
-func Init() (*Driver, error) {
+func Init(ms MacStore) (*Driver, error) {
 	d := &Driver{
-		networks: networkTable{},
-	}
-	var err error
-	d.client, err = docker.NewClient(swarmEndpoint)
-	if err != nil {
-		return nil, fmt.Errorf("could not connect to swarm. Error: %s", err)
+		Networks: NetworkTable{},
+		Store:    ms,
 	}
 
-	if err = d.initStore(); err != nil {
+	var err error
+
+	if err = d.Store.InitStore(d); err != nil {
 		logrus.Debugf("Failure during init macvlan local store : %v", err)
+		return nil, fmt.Errorf("Failure during init macvlan local store . Error: %s", err)
+	}
+
+	d.Client, err = docker.NewClient(swarmEndpoint)
+	if err != nil {
+		logrus.Debugf("Could not connect to swarm. Error: %v", err)
+		return nil, fmt.Errorf("could not connect to swarm. Error: %s", err)
 	}
 
 	return d, nil
@@ -148,7 +153,7 @@ func (d *Driver) AllocateNetwork(r *pluginNet.AllocateNetworkRequest) (*pluginNe
 	}
 
 	d.Lock()
-	d.networks[id] = n
+	d.Networks[id] = n
 	d.Unlock()
 	res := &pluginNet.AllocateNetworkResponse{Options: opts}
 
@@ -165,7 +170,7 @@ func (d *Driver) FreeNetwork(r *pluginNet.FreeNetworkRequest) error {
 	}
 
 	d.Lock()
-	_, ok := d.networks[id]
+	_, ok := d.Networks[id]
 	d.Unlock()
 
 	if !ok {
@@ -174,7 +179,7 @@ func (d *Driver) FreeNetwork(r *pluginNet.FreeNetworkRequest) error {
 	}
 
 	d.Lock()
-	delete(d.networks, id)
+	delete(d.Networks, id)
 	d.Unlock()
 
 	return nil

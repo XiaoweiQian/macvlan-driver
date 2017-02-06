@@ -1,16 +1,23 @@
 package drivers
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 
 	"github.com/Sirupsen/logrus"
 	pluginNet "github.com/docker/go-plugins-helpers/network"
+	"github.com/docker/libnetwork/datastore"
 	"github.com/docker/libnetwork/netlabel"
 	"github.com/docker/libnetwork/netutils"
 	"github.com/docker/libnetwork/ns"
 	"github.com/docker/libnetwork/osl"
 	"github.com/docker/libnetwork/types"
+)
+
+const (
+	macvlanPrefix         = "macvlan"
+	macvlanEndpointPrefix = macvlanPrefix + "/endpoint"
 )
 
 type endpoint struct {
@@ -40,7 +47,7 @@ func (d *Driver) CreateEndpoint(r *pluginNet.CreateEndpointRequest) (*pluginNet.
 	if intf == nil {
 		return nil, fmt.Errorf("invalid interface passed while create macvlan endpoint")
 	}
-	n, ok := d.networks[networkID]
+	n, ok := d.Networks[networkID]
 	if !ok {
 		return nil, fmt.Errorf("macvlan network with id %s not found", networkID)
 	}
@@ -90,7 +97,7 @@ func (d *Driver) CreateEndpoint(r *pluginNet.CreateEndpointRequest) (*pluginNet.
 		}
 	}
 
-	if err := d.storeUpdate(ep); err != nil {
+	if err := d.Store.StoreUpdate(ep); err != nil {
 		return nil, fmt.Errorf("failed to save macvlan endpoint %s to store: %v", ep.id[0:7], err)
 	}
 
@@ -112,7 +119,7 @@ func (d *Driver) DeleteEndpoint(r *pluginNet.DeleteEndpointRequest) error {
 	if eid == "" {
 		return fmt.Errorf("invalid endpoint id")
 	}
-	n := d.networks[nid]
+	n := d.Networks[nid]
 	if n == nil {
 		return fmt.Errorf("network id %q not found", nid)
 	}
@@ -131,7 +138,7 @@ func (d *Driver) deleteEndpoint(n *network, ep *endpoint) error {
 	if link, err := ns.NlHandle().LinkByName(ep.srcName); err == nil {
 		ns.NlHandle().LinkDel(link)
 	}
-	if err := d.storeDelete(ep); err != nil {
+	if err := d.Store.StoreDelete(ep); err != nil {
 		logrus.Warnf("Failed to remove macvlan endpoint %s from store: %v", ep.id[0:7], err)
 	}
 	n.deleteEndpoint(ep.id)
@@ -146,4 +153,104 @@ func (d *Driver) EndpointInfo(r *pluginNet.InfoRequest) (*pluginNet.InfoResponse
 		Value: make(map[string]string),
 	}
 	return res, nil
+}
+
+func (ep *endpoint) MarshalJSON() ([]byte, error) {
+	epMap := make(map[string]interface{})
+	epMap["id"] = ep.id
+	epMap["nid"] = ep.nid
+	epMap["SrcName"] = ep.srcName
+	if len(ep.mac) != 0 {
+		epMap["MacAddress"] = ep.mac.String()
+	}
+	if ep.addr != nil {
+		epMap["Addr"] = ep.addr.String()
+	}
+	if ep.addrv6 != nil {
+		epMap["Addrv6"] = ep.addrv6.String()
+	}
+	return json.Marshal(epMap)
+}
+
+func (ep *endpoint) UnmarshalJSON(b []byte) error {
+	var (
+		err   error
+		epMap map[string]interface{}
+	)
+
+	if err = json.Unmarshal(b, &epMap); err != nil {
+		return fmt.Errorf("Failed to unmarshal to macvlan endpoint: %v", err)
+	}
+
+	if v, ok := epMap["MacAddress"]; ok {
+		if ep.mac, err = net.ParseMAC(v.(string)); err != nil {
+			return types.InternalErrorf("failed to decode macvlan endpoint MAC address (%s) after json unmarshal: %v", v.(string), err)
+		}
+	}
+	if v, ok := epMap["Addr"]; ok {
+		if ep.addr, err = types.ParseCIDR(v.(string)); err != nil {
+			return types.InternalErrorf("failed to decode macvlan endpoint IPv4 address (%s) after json unmarshal: %v", v.(string), err)
+		}
+	}
+	if v, ok := epMap["Addrv6"]; ok {
+		if ep.addrv6, err = types.ParseCIDR(v.(string)); err != nil {
+			return types.InternalErrorf("failed to decode macvlan endpoint IPv6 address (%s) after json unmarshal: %v", v.(string), err)
+		}
+	}
+	ep.id = epMap["id"].(string)
+	ep.nid = epMap["nid"].(string)
+	ep.srcName = epMap["SrcName"].(string)
+
+	return nil
+}
+
+func (ep *endpoint) Key() []string {
+	return []string{macvlanEndpointPrefix, ep.id}
+}
+
+func (ep *endpoint) KeyPrefix() []string {
+	return []string{macvlanEndpointPrefix}
+}
+
+func (ep *endpoint) Value() []byte {
+	b, err := json.Marshal(ep)
+	if err != nil {
+		return nil
+	}
+	return b
+}
+
+func (ep *endpoint) SetValue(value []byte) error {
+	return json.Unmarshal(value, ep)
+}
+
+func (ep *endpoint) Index() uint64 {
+	return ep.dbIndex
+}
+
+func (ep *endpoint) SetIndex(index uint64) {
+	ep.dbIndex = index
+	ep.dbExists = true
+}
+
+func (ep *endpoint) Exists() bool {
+	return ep.dbExists
+}
+
+func (ep *endpoint) Skip() bool {
+	return false
+}
+
+func (ep *endpoint) New() datastore.KVObject {
+	return &endpoint{}
+}
+
+func (ep *endpoint) CopyTo(o datastore.KVObject) error {
+	dstEp := o.(*endpoint)
+	*dstEp = *ep
+	return nil
+}
+
+func (ep *endpoint) DataScope() string {
+	return datastore.LocalScope
 }

@@ -68,7 +68,7 @@ func (d *Driver) Join(r *pluginNet.JoinRequest) (*pluginNet.JoinResponse, error)
 		logrus.Debugf("Macvlan Endpoint Joined with IPv6_Addr: %s Gateway: %s MacVlan_Mode: %s, Parent: %s",
 			ep.addrv6.IP.String(), v6gw.String(), n.config.MacvlanMode, n.config.Parent)
 	}
-	if err := d.storeUpdate(ep); err != nil {
+	if err := d.Store.StoreUpdate(ep); err != nil {
 		return nil, fmt.Errorf("failed to save macvlan endpoint %s to store: %v", ep.id[0:7], err)
 	}
 	res := &pluginNet.JoinResponse{
