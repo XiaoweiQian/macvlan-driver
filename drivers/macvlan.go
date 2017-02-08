@@ -30,14 +30,14 @@ var driverModeOpt = macvlanType + modeOpt // mode --option macvlan_mode
 
 type endpointTable map[string]*endpoint
 
-// NetworkTable ...
-type NetworkTable map[string]*network
+// networkTable ...
+type networkTable map[string]*network
 
 // Driver ...
 type Driver struct {
-	Networks NetworkTable
-	Store    MacStore
-	Client   *docker.Client
+	networks networkTable
+	store    macStore
+	client   *docker.Client
 	sync.Once
 	sync.Mutex
 }
@@ -52,20 +52,22 @@ type network struct {
 }
 
 // Init macvlan remote driver
-func Init(ms MacStore) (*Driver, error) {
-	d := &Driver{
-		Networks: NetworkTable{},
-		Store:    ms,
+func Init(d *Driver) (*Driver, error) {
+	if d == nil {
+		d = &Driver{
+			networks: networkTable{},
+			store:    &MacvlanStore{},
+		}
 	}
 
 	var err error
 
-	if err = d.Store.InitStore(d); err != nil {
+	if err = d.store.InitStore(d); err != nil {
 		logrus.Debugf("Failure during init macvlan local store : %v", err)
 		return nil, fmt.Errorf("Failure during init macvlan local store . Error: %s", err)
 	}
 
-	d.Client, err = docker.NewClient(swarmEndpoint)
+	d.client, err = docker.NewClient(swarmEndpoint)
 	if err != nil {
 		logrus.Debugf("Could not connect to swarm. Error: %v", err)
 		return nil, fmt.Errorf("could not connect to swarm. Error: %s", err)
@@ -138,7 +140,7 @@ func (d *Driver) AllocateNetwork(r *pluginNet.AllocateNetworkRequest) (*pluginNe
 		return nil, fmt.Errorf("loopback interface is not a valid %s parent link", macvlanType)
 	}
 
-	networkList := d.getNetworks()
+	networkList := d.getnetworks()
 	for _, nw := range networkList {
 		if config.Parent == nw.config.Parent {
 			return nil, fmt.Errorf("network %s is already using parent interface %s",
@@ -153,7 +155,7 @@ func (d *Driver) AllocateNetwork(r *pluginNet.AllocateNetworkRequest) (*pluginNe
 	}
 
 	d.Lock()
-	d.Networks[id] = n
+	d.networks[id] = n
 	d.Unlock()
 	res := &pluginNet.AllocateNetworkResponse{Options: opts}
 
@@ -170,7 +172,7 @@ func (d *Driver) FreeNetwork(r *pluginNet.FreeNetworkRequest) error {
 	}
 
 	d.Lock()
-	_, ok := d.Networks[id]
+	_, ok := d.networks[id]
 	d.Unlock()
 
 	if !ok {
@@ -179,7 +181,7 @@ func (d *Driver) FreeNetwork(r *pluginNet.FreeNetworkRequest) error {
 	}
 
 	d.Lock()
-	delete(d.Networks, id)
+	delete(d.networks, id)
 	d.Unlock()
 
 	return nil

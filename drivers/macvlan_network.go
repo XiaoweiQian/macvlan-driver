@@ -168,7 +168,7 @@ func (d *Driver) DeleteNetwork(r *pluginNet.DeleteNetworkRequest) error {
 			ns.NlHandle().LinkDel(link)
 		}
 
-		if err := d.Store.StoreDelete(ep); err != nil {
+		if err := d.store.StoreDelete(ep); err != nil {
 			logrus.Warnf("Failed to remove macvlan endpoint %s from store: %v", ep.id[0:7], err)
 		}
 	}

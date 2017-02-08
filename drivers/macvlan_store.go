@@ -9,8 +9,7 @@ import (
 	"github.com/docker/libnetwork/datastore"
 )
 
-//MacStore ...
-type MacStore interface {
+type macStore interface {
 	InitStore(d *Driver) error
 	PopulateEndpoints() error
 	StoreUpdate(kvObject datastore.KVObject) error

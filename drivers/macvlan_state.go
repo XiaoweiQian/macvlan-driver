@@ -11,23 +11,23 @@ import (
 
 func (d *Driver) addNetwork(n *network) {
 	d.Lock()
-	d.Networks[n.id] = n
+	d.networks[n.id] = n
 	d.Unlock()
 }
 
 func (d *Driver) deleteNetwork(nid string) {
 	d.Lock()
-	delete(d.Networks, nid)
+	delete(d.networks, nid)
 	d.Unlock()
 }
 
-// getNetworks Safely returns a slice of existing Networks
-func (d *Driver) getNetworks() []*network {
+// getnetworks Safely returns a slice of existing Networks
+func (d *Driver) getnetworks() []*network {
 	d.Lock()
 	defer d.Unlock()
 
-	ls := make([]*network, 0, len(d.Networks))
-	for _, nw := range d.Networks {
+	ls := make([]*network, 0, len(d.networks))
+	for _, nw := range d.networks {
 		ls = append(ls, nw)
 	}
 
@@ -95,7 +95,7 @@ func (d *Driver) getNetwork(id string) (*network, error) {
 	if id == "" {
 		return nil, types.BadRequestErrorf("invalid network id: %s", id)
 	}
-	if nw, ok := d.Networks[id]; ok {
+	if nw, ok := d.networks[id]; ok {
 		return nw, nil
 	}
 
@@ -104,13 +104,13 @@ func (d *Driver) getNetwork(id string) (*network, error) {
 
 func (d *Driver) network(nid string) *network {
 	d.Lock()
-	n, ok := d.Networks[nid]
+	n, ok := d.networks[nid]
 	d.Unlock()
 	if !ok {
 		n = d.getNetworkFromSwarm(nid)
 		if n != nil {
 			d.Lock()
-			d.Networks[nid] = n
+			d.networks[nid] = n
 			d.Unlock()
 		}
 	}
@@ -119,10 +119,10 @@ func (d *Driver) network(nid string) *network {
 }
 
 func (d *Driver) getNetworkFromSwarm(nid string) *network {
-	if d.Client == nil {
+	if d.client == nil {
 		return nil
 	}
-	nw, err := d.Client.NetworkInfo(nid)
+	nw, err := d.client.NetworkInfo(nid)
 	logrus.Debugf("Network (%s)  found from swarm", nw)
 	if err != nil {
 		return nil

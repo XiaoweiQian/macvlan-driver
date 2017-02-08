@@ -47,7 +47,7 @@ func (d *Driver) CreateEndpoint(r *pluginNet.CreateEndpointRequest) (*pluginNet.
 	if intf == nil {
 		return nil, fmt.Errorf("invalid interface passed while create macvlan endpoint")
 	}
-	n, ok := d.Networks[networkID]
+	n, ok := d.networks[networkID]
 	if !ok {
 		return nil, fmt.Errorf("macvlan network with id %s not found", networkID)
 	}
@@ -97,7 +97,7 @@ func (d *Driver) CreateEndpoint(r *pluginNet.CreateEndpointRequest) (*pluginNet.
 		}
 	}
 
-	if err := d.Store.StoreUpdate(ep); err != nil {
+	if err := d.store.StoreUpdate(ep); err != nil {
 		return nil, fmt.Errorf("failed to save macvlan endpoint %s to store: %v", ep.id[0:7], err)
 	}
 
@@ -119,7 +119,7 @@ func (d *Driver) DeleteEndpoint(r *pluginNet.DeleteEndpointRequest) error {
 	if eid == "" {
 		return fmt.Errorf("invalid endpoint id")
 	}
-	n := d.Networks[nid]
+	n := d.networks[nid]
 	if n == nil {
 		return fmt.Errorf("network id %q not found", nid)
 	}
@@ -138,7 +138,7 @@ func (d *Driver) deleteEndpoint(n *network, ep *endpoint) error {
 	if link, err := ns.NlHandle().LinkByName(ep.srcName); err == nil {
 		ns.NlHandle().LinkDel(link)
 	}
-	if err := d.Store.StoreDelete(ep); err != nil {
+	if err := d.store.StoreDelete(ep); err != nil {
 		logrus.Warnf("Failed to remove macvlan endpoint %s from store: %v", ep.id[0:7], err)
 	}
 	n.deleteEndpoint(ep.id)
