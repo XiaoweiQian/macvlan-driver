@@ -139,7 +139,7 @@ func (d *Driver) deleteEndpoint(n *network, ep *endpoint) error {
 		ns.NlHandle().LinkDel(link)
 	}
 	if err := d.store.StoreDelete(ep); err != nil {
-		logrus.Warnf("Failed to remove macvlan endpoint %s from store: %v", ep.id[0:7], err)
+		return fmt.Errorf("failed to remove macvlan endpoint %s to store: %v", ep.id[0:7], err)
 	}
 	n.deleteEndpoint(ep.id)
 

@@ -36,8 +36,6 @@ func (d *Driver) Join(r *pluginNet.JoinRequest) (*pluginNet.JoinResponse, error)
 		logrus.Debugf("Join: createMacVlan error:", err.Error())
 		return nil, err
 	}
-	// bind the generated iface name to the endpoint
-	ep.srcName = vethName
 
 	// parse and match the endpoint address with the available v4 subnets
 	var v4gwStr, v6gwStr string
@@ -71,6 +69,9 @@ func (d *Driver) Join(r *pluginNet.JoinRequest) (*pluginNet.JoinResponse, error)
 	if err := d.store.StoreUpdate(ep); err != nil {
 		return nil, fmt.Errorf("failed to save macvlan endpoint %s to store: %v", ep.id[0:7], err)
 	}
+	// bind the generated iface name to the endpoint
+	ep.srcName = vethName
+
 	res := &pluginNet.JoinResponse{
 		InterfaceName: pluginNet.InterfaceName{
 			SrcName:   ep.srcName,

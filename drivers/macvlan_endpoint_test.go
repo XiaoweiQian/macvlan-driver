@@ -16,18 +16,19 @@ func initEndpointData() (*MacStore, *Driver, *pluginNet.CreateEndpointRequest, *
 		store:    ms,
 	}
 	config := &configuration{
-		ID:     "1",
-		Parent: "eth0",
+		ID:          "1",
+		Parent:      "eth0",
+		MacvlanMode: "bridge",
 		Ipv4Subnets: []*ipv4Subnet{
 			&ipv4Subnet{
 				SubnetIP: "192.168.2.0/24",
-				GwIP:     "192.168.2.1",
+				GwIP:     "192.168.2.1/24",
 			},
 		},
 		Ipv6Subnets: []*ipv6Subnet{
 			&ipv6Subnet{
 				SubnetIP: "fe80:0:0:0:0:0:c0a8:200/120",
-				GwIP:     "fe80:0:0:0:0:0:c0a8:201",
+				GwIP:     "fe80:0:0:0:0:0:c0a8:201/120",
 			},
 		},
 	}
@@ -81,4 +82,52 @@ func TestCreateEndpointWithErr(t *testing.T) {
 	assert.NotNil(t, err)
 	assert.Nil(t, res)
 	assert.EqualError(t, err, "failed to save macvlan endpoint 1234567 to store: error")
+}
+
+func TestDeleteEndpointWithOK(t *testing.T) {
+	ms, d, r, ep := initEndpointData()
+	d.networks[r.NetworkID].endpoints[r.EndpointID] = ep
+	ms.On("StoreDelete", ep).Return(nil)
+	der := &pluginNet.DeleteEndpointRequest{
+		NetworkID:  r.NetworkID,
+		EndpointID: r.EndpointID,
+	}
+	err := d.DeleteEndpoint(der)
+	assert.Nil(t, err)
+	assert.Empty(t, d.networks[r.NetworkID].endpoints[r.EndpointID])
+}
+
+func TestDeleteEndpointWithErr(t *testing.T) {
+	ms, d, r, ep := initEndpointData()
+	d.networks[r.NetworkID].endpoints[r.EndpointID] = ep
+	ms.On("StoreDelete", ep).Return(fmt.Errorf("error"))
+	der := &pluginNet.DeleteEndpointRequest{
+		NetworkID:  r.NetworkID,
+		EndpointID: r.EndpointID,
+	}
+	err := d.DeleteEndpoint(der)
+	assert.NotNil(t, err)
+	assert.EqualError(t, err, "failed to remove macvlan endpoint 1234567 to store: error")
+	assert.NotEmpty(t, d.networks[r.NetworkID].endpoints[r.EndpointID])
+}
+
+func TestEndpointInfo(t *testing.T) {
+	_, d, r, _ := initEndpointData()
+	ir := &pluginNet.InfoRequest{
+		NetworkID:  r.NetworkID,
+		EndpointID: r.EndpointID,
+	}
+	res, err := d.EndpointInfo(ir)
+	assert.Nil(t, err)
+	assert.NotNil(t, res)
+}
+
+func TestMarshaJSON(t *testing.T) {
+	_, _, _, ep := initEndpointData()
+	b, err := ep.MarshalJSON()
+	assert.Nil(t, err)
+	ep1 := &endpoint{}
+	err1 := ep1.UnmarshalJSON(b)
+	assert.Nil(t, err1)
+	assert.EqualValues(t, ep1, ep)
 }
