@@ -22,19 +22,23 @@ func (d *Driver) CreateNetwork(r *pluginNet.CreateNetworkRequest) error {
 
 	kv, err := kernel.GetKernelVersion()
 	if err != nil {
-		return fmt.Errorf("failed to check kernel version for %s driver support: %v", macvlanType, err)
+		str := fmt.Sprintf("failed to check kernel version for %s driver support: %v", macvlanType, err)
+		logrus.Errorf(str)
+		return fmt.Errorf(str)
 	}
 	// ensure Kernel version is >= v3.9 for macvlan support
 	if kv.Kernel < macvlanKernelVer || (kv.Kernel == macvlanKernelVer && kv.Major < macvlanMajorVer) {
-		return fmt.Errorf("kernel version failed to meet the minimum macvlan kernel requirement of %d.%d, found %d.%d.%d",
+		str := fmt.Sprintf("kernel version failed to meet the minimum macvlan kernel requirement of %d.%d, found %d.%d.%d",
 			macvlanKernelVer, macvlanMajorVer, kv.Kernel, kv.Major, kv.Minor)
+		logrus.Errorf(str)
+		return fmt.Errorf(str)
 	}
 
 	id := r.NetworkID
 	opts := r.Options
 	ipV4Data := r.IPv4Data
 	ipV6Data := r.IPv6Data
-	logrus.Debugf("CreateNetwork macvlan with networkID=%s,opts=%s", id, opts)
+	logrus.Infof("CreateNetwork macvlan with networkID=%s,opts=%s", id, opts)
 
 	if id == "" {
 		return fmt.Errorf("invalid network id")
@@ -48,14 +52,17 @@ func (d *Driver) CreateNetwork(r *pluginNet.CreateNetworkRequest) error {
 	// parse and validate the config and bind to networkConfiguration
 	config, err := parseNetworkOptions(id, opts)
 	if err != nil {
-		logrus.Debugf("ERROR: CreateNetwork opts is invalid %s", opts)
-		return err
+		str := fmt.Sprintf("CreateNetwork opts is invalid %s", opts)
+		logrus.Errorf(str)
+		return fmt.Errorf(str)
 	}
 
 	config.ID = id
 	err = config.processIPAM(id, ipV4Data, ipV6Data)
 	if err != nil {
-		return err
+		str := fmt.Sprintf("CreateNetwork ipV4Data is invalid %s", ipV4Data)
+		logrus.Errorf(str)
+		return fmt.Errorf(str)
 	}
 	// verify the macvlan mode from -o macvlan_mode option
 	switch config.MacvlanMode {
@@ -69,11 +76,15 @@ func (d *Driver) CreateNetwork(r *pluginNet.CreateNetworkRequest) error {
 	case modeVepa:
 		config.MacvlanMode = modeVepa
 	default:
-		return fmt.Errorf("requested macvlan mode '%s' is not valid, 'bridge' mode is the macvlan driver default", config.MacvlanMode)
+		str := fmt.Sprintf("requested macvlan mode '%s' is not valid, 'bridge' mode is the macvlan driver default", config.MacvlanMode)
+		logrus.Errorf(str)
+		return fmt.Errorf(str)
 	}
 	// loopback is not a valid parent link
 	if config.Parent == "lo" {
-		return fmt.Errorf("loopback interface is not a valid %s parent link", macvlanType)
+		str := fmt.Sprintf("loopback interface is not a valid %s parent link", macvlanType)
+		logrus.Errorf(str)
+		return fmt.Errorf(str)
 	}
 	// if parent interface not specified, create a dummy type link to use named dummy+net_id
 	if config.Parent == "" {
@@ -84,8 +95,9 @@ func (d *Driver) CreateNetwork(r *pluginNet.CreateNetworkRequest) error {
 
 	err = d.createNetwork(config)
 	if err != nil {
-		logrus.Debugf("Error:CreateNetwork %s", err.Error())
-		return err
+		str := fmt.Sprintf("CreateNetwork is failed %v", err)
+		logrus.Errorf(str)
+		return fmt.Errorf(str)
 	}
 
 	return nil
@@ -103,7 +115,7 @@ func (d *Driver) createNetwork(config *configuration) error {
 			config.CreatedSlaveLink = true
 			// notify the user in logs they have limited comunicatins
 			if config.Parent == getDummyName(stringid.TruncateID(config.ID)) {
-				logrus.Debugf("Empty -o parent= and --internal flags limit communications to other containers inside of network: %s",
+				logrus.Infof("Empty -o parent= and --internal flags limit communications to other containers inside of network: %s",
 					config.Parent)
 			}
 		} else {
@@ -132,8 +144,8 @@ func (d *Driver) createNetwork(config *configuration) error {
 // DeleteNetwork deletes the network for the specified driver type
 func (d *Driver) DeleteNetwork(r *pluginNet.DeleteNetworkRequest) error {
 	defer osl.InitOSContext()()
-	logrus.Debugf("DeleteNetwork macvlan")
 	nid := r.NetworkID
+	logrus.Infof("DeleteNetwork macvlan nid=%s", nid)
 	if nid == "" {
 		return fmt.Errorf("invalid network id")
 	}
@@ -150,14 +162,14 @@ func (d *Driver) DeleteNetwork(r *pluginNet.DeleteNetworkRequest) error {
 			if n.config.Parent == getDummyName(stringid.TruncateID(nid)) {
 				err := delDummyLink(n.config.Parent)
 				if err != nil {
-					logrus.Debugf("link %s was not deleted, continuing the delete network operation: %v",
+					logrus.Errorf("link %s was not deleted, continuing the delete network operation: %v",
 						n.config.Parent, err)
 				}
 			} else {
 				// only delete the link if it matches iface.vlan naming
 				err := delVlanLink(n.config.Parent)
 				if err != nil {
-					logrus.Debugf("link %s was not deleted, continuing the delete network operation: %v",
+					logrus.Errorf("link %s was not deleted, continuing the delete network operation: %v",
 						n.config.Parent, err)
 				}
 			}
@@ -166,6 +178,7 @@ func (d *Driver) DeleteNetwork(r *pluginNet.DeleteNetworkRequest) error {
 	for _, ep := range n.endpoints {
 		if link, err := ns.NlHandle().LinkByName(ep.srcName); err == nil {
 			ns.NlHandle().LinkDel(link)
+			logrus.Infof("DeleteNetwork delete macvlan link %s", ep.srcName)
 		}
 
 		if err := d.store.StoreDelete(ep); err != nil {

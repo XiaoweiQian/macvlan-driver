@@ -2,6 +2,7 @@ package drivers
 
 import (
 	"fmt"
+	"os"
 	"sync"
 
 	"github.com/Sirupsen/logrus"
@@ -23,7 +24,7 @@ const (
 	modePassthru        = "passthru" // macvlan mode passthrough
 	parentOpt           = "parent"   // parent interface -o parent
 	modeOpt             = "_mode"    // macvlan mode ux opt suffix
-	swarmEndpoint       = "http://localhost:6732"
+	swarmHost           = "http://localhost:6732"
 )
 
 var driverModeOpt = macvlanType + modeOpt // mode --option macvlan_mode
@@ -61,16 +62,21 @@ func Init(d *Driver) (*Driver, error) {
 	}
 
 	var err error
-
-	if err = d.store.InitStore(d); err != nil {
-		logrus.Debugf("Failure during init macvlan local store : %v", err)
-		return nil, fmt.Errorf("Failure during init macvlan local store . Error: %s", err)
+	host := os.Getenv("SWARM_HOST")
+	if host == "" {
+		host = swarmHost
+	}
+	d.client, err = docker.NewClient(host)
+	if err != nil {
+		str := fmt.Sprintf("Could not connect to swarm. Error: %v", err)
+		logrus.Errorf(str)
+		return nil, fmt.Errorf(str)
 	}
 
-	d.client, err = docker.NewClient(swarmEndpoint)
-	if err != nil {
-		logrus.Debugf("Could not connect to swarm. Error: %v", err)
-		return nil, fmt.Errorf("could not connect to swarm. Error: %s", err)
+	if err = d.store.InitStore(d); err != nil {
+		str := fmt.Sprintf("Failure during init macvlan local store: %v", err)
+		logrus.Errorf(str)
+		return nil, fmt.Errorf(str)
 	}
 
 	return d, nil
@@ -78,7 +84,7 @@ func Init(d *Driver) (*Driver, error) {
 
 // GetCapabilities for swarm return GlobalScope
 func (d *Driver) GetCapabilities() (*pluginNet.CapabilitiesResponse, error) {
-	logrus.Debugf("GetCapabilities macvlan")
+	logrus.Infof("GetCapabilities macvlan")
 	cap := &pluginNet.CapabilitiesResponse{Scope: pluginNet.GlobalScope}
 	return cap, nil
 }
@@ -87,16 +93,20 @@ func (d *Driver) GetCapabilities() (*pluginNet.CapabilitiesResponse, error) {
 func (d *Driver) AllocateNetwork(r *pluginNet.AllocateNetworkRequest) (*pluginNet.AllocateNetworkResponse, error) {
 	id := r.NetworkID
 	opts := r.Options
-	logrus.Debugf("AllocateNetwork macvlan with networkID=%s,opts=%s", id, opts)
+	logrus.Infof("AllocateNetwork macvlan with networkID=%s,opts=%s", id, opts)
 	ipV4Data := r.IPv4Data
 	ipV6Data := r.IPv6Data
 	if id == "" {
-		return nil, fmt.Errorf("invalid network id for macvlan network")
+		str := "invalid network id for macvlan network"
+		logrus.Errorf(str)
+		return nil, fmt.Errorf(str)
 	}
 
 	// reject a null v4 network
 	if len(ipV4Data) == 0 || ipV4Data[0].Pool == "0.0.0.0/0" {
-		return nil, fmt.Errorf("ipv4 pool is empty")
+		str := "ipv4 pool is empty"
+		logrus.Errorf(str)
+		return nil, fmt.Errorf(str)
 	}
 
 	options := make(map[string]interface{})
@@ -104,7 +114,9 @@ func (d *Driver) AllocateNetwork(r *pluginNet.AllocateNetworkRequest) (*pluginNe
 	// parse and validate the config and bind to networkConfiguration
 	config, err := parseNetworkOptions(id, options)
 	if err != nil {
-		return nil, err
+		str := fmt.Sprintf("CreateNetwork opts is invalid %s", options)
+		logrus.Errorf(str)
+		return nil, fmt.Errorf(str)
 	}
 
 	config.ID = id
@@ -118,7 +130,9 @@ func (d *Driver) AllocateNetwork(r *pluginNet.AllocateNetworkRequest) (*pluginNe
 	}
 	err = config.processIPAM(id, ipv4, ipv6)
 	if err != nil {
-		return nil, err
+		str := fmt.Sprintf("CreateNetwork ipV4Data is invalid %s", ipv4)
+		logrus.Errorf(str)
+		return nil, fmt.Errorf(str)
 	}
 
 	// verify the macvlan mode from -o macvlan_mode option
@@ -133,18 +147,24 @@ func (d *Driver) AllocateNetwork(r *pluginNet.AllocateNetworkRequest) (*pluginNe
 	case modeVepa:
 		config.MacvlanMode = modeVepa
 	default:
-		return nil, fmt.Errorf("requested macvlan mode '%s' is not valid, 'bridge' mode is the macvlan driver default", config.MacvlanMode)
+		str := fmt.Sprintf("requested macvlan mode '%s' is not valid, 'bridge' mode is the macvlan driver default", config.MacvlanMode)
+		logrus.Errorf(str)
+		return nil, fmt.Errorf(str)
 	}
 	// loopback is not a valid parent link
 	if config.Parent == "lo" {
-		return nil, fmt.Errorf("loopback interface is not a valid %s parent link", macvlanType)
+		str := fmt.Sprintf("loopback interface is not a valid %s parent link", macvlanType)
+		logrus.Errorf(str)
+		return nil, fmt.Errorf(str)
 	}
 
 	networkList := d.getnetworks()
 	for _, nw := range networkList {
 		if config.Parent == nw.config.Parent {
-			return nil, fmt.Errorf("network %s is already using parent interface %s",
+			str := fmt.Sprintf("network %s is already using parent interface %s",
 				getDummyName(stringid.TruncateID(nw.config.ID)), config.Parent)
+			logrus.Errorf(str)
+			return nil, fmt.Errorf(str)
 		}
 	}
 
@@ -165,10 +185,12 @@ func (d *Driver) AllocateNetwork(r *pluginNet.AllocateNetworkRequest) (*pluginNe
 
 // FreeNetwork ...
 func (d *Driver) FreeNetwork(r *pluginNet.FreeNetworkRequest) error {
-	logrus.Debugf("FreeNetwork macvlan")
 	id := r.NetworkID
+	logrus.Infof("FreeNetwork macvlan id=%s", id)
 	if id == "" {
-		return fmt.Errorf("invalid network id passed while freeing macvlan network")
+		str := "invalid network id passed while freeing macvlan network"
+		logrus.Errorf(str)
+		return fmt.Errorf(str)
 	}
 
 	d.Lock()

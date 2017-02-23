@@ -57,7 +57,7 @@ func (ms *MacvlanStore) InitStore(d *Driver) error {
 		return fmt.Errorf("could not init macvlan local store. Error: %s", err)
 	}
 	if err = ms.PopulateEndpoints(); err != nil {
-		logrus.Debugf("Failure during macvlan endpoints populate: %v", err)
+		logrus.Errorf("Failure during macvlan endpoints populate: %v", err)
 	}
 	return nil
 }
@@ -70,7 +70,7 @@ func (ms *MacvlanStore) PopulateEndpoints() error {
 	}
 
 	if err == datastore.ErrKeyNotFound {
-		logrus.Debugf("There is no endpoints in the localStore for key (%s).", macvlanEndpointPrefix)
+		logrus.Infof("There is no endpoints in the localStore for key (%s).", macvlanEndpointPrefix)
 		return nil
 	}
 
@@ -78,15 +78,15 @@ func (ms *MacvlanStore) PopulateEndpoints() error {
 		ep := kvo.(*endpoint)
 		n := ms.driver.network(ep.nid)
 		if n == nil {
-			logrus.Debugf("Network (%s) not found for restored macvlan endpoint (%s)", ep.nid[0:7], ep.id[0:7])
-			logrus.Debugf("Deleting stale macvlan endpoint (%s) from store", ep.id[0:7])
+			logrus.Infof("Network (%s) not found for restored macvlan endpoint (%s)", ep.nid[0:7], ep.id[0:7])
+			logrus.Infof("Deleting stale macvlan endpoint (%s) from store", ep.id[0:7])
 			if err := ms.StoreDelete(ep); err != nil {
-				logrus.Debugf("Failed to delete stale macvlan endpoint (%s) from store", ep.id[0:7])
+				logrus.Infof("Failed to delete stale macvlan endpoint (%s) from store", ep.id[0:7])
 			}
 			continue
 		}
 		n.endpoints[ep.id] = ep
-		logrus.Debugf("Endpoint (%s) restored to network (%s)", ep.id[0:7], ep.nid[0:7])
+		logrus.Infof("Endpoint (%s) restored to network (%s)", ep.id[0:7], ep.nid[0:7])
 	}
 
 	return nil

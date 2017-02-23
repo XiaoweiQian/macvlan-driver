@@ -120,13 +120,14 @@ func (d *Driver) network(nid string) *network {
 
 func (d *Driver) getNetworkFromSwarm(nid string) *network {
 	if d.client == nil {
+		logrus.Errorf("Docker clinet is nil.")
 		return nil
 	}
 	nw, err := d.client.NetworkInfo(nid)
-	logrus.Debugf("Network (%s)  found from swarm", nw)
 	if err != nil {
 		return nil
 	}
+	logrus.Infof("Network (%s)  found from swarm", nw)
 	subnets := nw.IPAM.Config
 	opts := nw.Options
 	options := make(map[string]interface{})
@@ -134,9 +135,11 @@ func (d *Driver) getNetworkFromSwarm(nid string) *network {
 	// parse and validate the config and bind to networkConfiguration
 	config, err := parseNetworkOptions(nid, options)
 	if err != nil {
+		logrus.Errorf("Swarm:Network (%s)  found, but parseNetworkOptions error %v", nw, err)
 		return nil
 	}
 	if err := config.processIPAMFromSwarm(nid, subnets); err != nil {
+		logrus.Errorf("Swarm:Network (%s)  found, but processIPAMFromSwarm error %v", nw, err)
 		return nil
 	}
 
@@ -147,6 +150,6 @@ func (d *Driver) getNetworkFromSwarm(nid string) *network {
 		config:    config,
 	}
 
-	logrus.Debugf("restore Network (%s) from swarm", n)
+	logrus.Infof("restore Network (%s) from swarm", n)
 	return n
 }

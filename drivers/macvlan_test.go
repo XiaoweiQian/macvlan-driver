@@ -71,7 +71,7 @@ func TestInitWithErr(t *testing.T) {
 	ms.On("InitStore", d).Return(fmt.Errorf("error"))
 	d, err := Init(d)
 	assert.NotNil(t, err)
-	assert.EqualError(t, err, "Failure during init macvlan local store . Error: error")
+	assert.EqualError(t, err, "Failure during init macvlan local store: error")
 	assert.Nil(t, d)
 }
 

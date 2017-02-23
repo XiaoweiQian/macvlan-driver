@@ -13,28 +13,33 @@ import (
 
 // Join method is invoked when a Sandbox is attached to an endpoint.
 func (d *Driver) Join(r *pluginNet.JoinRequest) (*pluginNet.JoinResponse, error) {
-	logrus.Debugf("Join macvlan")
 	defer osl.InitOSContext()()
 	nid := r.NetworkID
 	eid := r.EndpointID
+	logrus.Infof("Join macvlan nid=%s,eid=%s", nid, eid)
 	n, err := d.getNetwork(nid)
 	if err != nil {
 		return nil, err
 	}
 	ep := n.endpoint(eid)
 	if ep == nil {
-		return nil, fmt.Errorf("could not find endpoint with id %s", eid)
+		str := fmt.Sprintf("could not find endpoint with id %s", eid)
+		logrus.Errorf(str)
+		return nil, fmt.Errorf(str)
 	}
 	// generate a name for the iface that will be renamed to eth0 in the sbox
 	containerIfName, err := netutils.GenerateIfaceName(ns.NlHandle(), vethPrefix, vethLen)
 	if err != nil {
-		return nil, fmt.Errorf("error generating an interface name: %s", err)
+		str := fmt.Sprintf("error generating an interface name: %s", err)
+		logrus.Errorf(str)
+		return nil, fmt.Errorf(str)
 	}
 	// create the netlink macvlan interface
 	vethName, err := createMacVlan(containerIfName, n.config.Parent, n.config.MacvlanMode)
 	if err != nil {
-		logrus.Debugf("Join: createMacVlan error:", err.Error())
-		return nil, err
+		str := fmt.Sprintf("Join: createMacVlan error: %s", err)
+		logrus.Errorf(str)
+		return nil, fmt.Errorf(str)
 	}
 
 	// parse and match the endpoint address with the available v4 subnets
@@ -42,14 +47,18 @@ func (d *Driver) Join(r *pluginNet.JoinRequest) (*pluginNet.JoinResponse, error)
 	if len(n.config.Ipv4Subnets) > 0 {
 		s := n.getSubnetforIPv4(ep.addr)
 		if s == nil {
-			return nil, fmt.Errorf("could not find a valid ipv4 subnet for endpoint %s", eid)
+			str := fmt.Sprintf("could not find a valid ipv4 subnet for endpoint %s", eid)
+			logrus.Errorf(str)
+			return nil, fmt.Errorf(str)
 		}
 		v4gw, _, err := net.ParseCIDR(s.GwIP)
 		if err != nil {
-			return nil, fmt.Errorf("gatway %s is not a valid ipv4 address: %v", s.GwIP, err)
+			str := fmt.Sprintf("gatway %s is not a valid ipv4 address: %v", s.GwIP, err)
+			logrus.Errorf(str)
+			return nil, fmt.Errorf(str)
 		}
 		v4gwStr = v4gw.String()
-		logrus.Debugf("Macvlan Endpoint Joined with IPv4_Addr: %s, Gateway: %s, MacVlan_Mode: %s, Parent: %s",
+		logrus.Infof("Macvlan Endpoint Joined with IPv4_Addr: %s, Gateway: %s, MacVlan_Mode: %s, Parent: %s",
 			ep.addr.IP.String(), v4gw.String(), n.config.MacvlanMode, n.config.Parent)
 	}
 	// parse and match the endpoint address with the available v6 subnets
@@ -63,11 +72,13 @@ func (d *Driver) Join(r *pluginNet.JoinRequest) (*pluginNet.JoinResponse, error)
 			return nil, fmt.Errorf("gatway %s is not a valid ipv6 address: %v", s.GwIP, err)
 		}
 		v6gwStr = v6gw.String()
-		logrus.Debugf("Macvlan Endpoint Joined with IPv6_Addr: %s Gateway: %s MacVlan_Mode: %s, Parent: %s",
+		logrus.Infof("Macvlan Endpoint Joined with IPv6_Addr: %s Gateway: %s MacVlan_Mode: %s, Parent: %s",
 			ep.addrv6.IP.String(), v6gw.String(), n.config.MacvlanMode, n.config.Parent)
 	}
 	if err := d.store.StoreUpdate(ep); err != nil {
-		return nil, fmt.Errorf("failed to save macvlan endpoint %s to store: %v", ep.id[0:7], err)
+		str := fmt.Sprintf("failed to save macvlan endpoint %s to store: %v", ep.id[0:7], err)
+		logrus.Errorf(str)
+		return nil, fmt.Errorf(str)
 	}
 	// bind the generated iface name to the endpoint
 	ep.srcName = vethName
@@ -85,9 +96,9 @@ func (d *Driver) Join(r *pluginNet.JoinRequest) (*pluginNet.JoinResponse, error)
 
 // Leave method is invoked when a Sandbox detaches from an endpoint.
 func (d *Driver) Leave(r *pluginNet.LeaveRequest) error {
-	logrus.Debugf("Leave macvlan")
 	nid := r.NetworkID
 	eid := r.EndpointID
+	logrus.Infof("Leave macvlan nid=%s,eid=%s", nid, eid)
 	if nid == "" {
 		return fmt.Errorf("invalid network id")
 	}

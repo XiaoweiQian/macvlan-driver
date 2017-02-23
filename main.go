@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	version     = "0.1"
+	version     = "0.1.1"
 	networkType = "macvlan_swarm"
 )
 
@@ -35,6 +35,8 @@ func main() {
 func Run(ctx *cli.Context) {
 	if ctx.Bool("debug") {
 		logrus.SetLevel(logrus.DebugLevel)
+	} else {
+		logrus.SetLevel(logrus.InfoLevel)
 	}
 
 	d, err := drivers.Init(nil)
