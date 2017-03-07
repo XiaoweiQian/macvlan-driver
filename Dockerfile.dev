@@ -1,0 +1,12 @@
+FROM golang:1.7.5-alpine3.5
+
+COPY . /go/src/github.com/XiaoweiQian/macvlan-driver
+WORKDIR /go/src/github.com/XiaoweiQian/macvlan-driver
+
+RUN set -ex \
+    && apk add --no-cache --virtual .build-deps \
+    gcc libc-dev linux-headers \
+    && go install --ldflags '-extldflags "-static"' \
+    && apk del .build-deps
+
+CMD ["/go/bin/macvlan-driver"]

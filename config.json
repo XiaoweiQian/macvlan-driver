@@ -1,0 +1,34 @@
+{
+  "description": "macvlan Net plugin for Docker swarm",
+  "documentation": "",
+  "entrypoint": [
+    "docker-macvlan"
+  ],
+  "interface": {
+    "socket": "macvlan_swarm.sock",
+    "types": [
+      "docker.networkdriver/1.0"
+    ]
+  },
+  "linux": {
+    "capabilities": [
+      "CAP_SYS_ADMIN",
+      "CAP_NET_ADMIN"
+    ]
+  },
+  "mounts": null,
+  "env": [
+    {
+      "description": "Extra args to `macvlan_swarm` and `plugin`",
+      "name": "EXTRA_ARGS",
+      "settable": [
+          "value"
+      ],
+      "value": ""
+    }
+  ],
+  "network": {
+    "type": "host"
+  },
+  "workdir": ""
+}

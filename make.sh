@@ -1,6 +1,5 @@
 #!/bin/bash
 
-VERSION="0.1"
 PKGDIR=./
 if [ "$PKG_DIR" ]; then
     echo "set gopath"
@@ -12,4 +11,4 @@ if [ "$PKG_DIR" ]; then
     PKGDIR=./.gopath/src/${PKG_DIR##*src}
 fi
 
-go build -o ./docker-macvlan-$VERSION $PKGDIR
+go build -o ./docker-macvlan $PKGDIR

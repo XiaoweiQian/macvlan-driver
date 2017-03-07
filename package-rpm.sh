@@ -1,8 +1,7 @@
 #!/bin/bash
 
-VERSION="0.1.1"
 rpmName=docker-macvlan
-rpmVersion=$VERSION
+rpmVersion="0.2.0"
 rpmRelease="1.sn"
 pkgDir=${PWD}
 
@@ -16,7 +15,6 @@ rm -rf ../${rpmName}
 rpmbuild -ba \
             --define "_release $rpmRelease" \
             --define "_version $rpmVersion" \
-            --define "_origversion $VERSION" \
             --define "_pkgdir $pkgDir" \
             /root/rpmbuild/SPECS/${rpmName}.spec
 

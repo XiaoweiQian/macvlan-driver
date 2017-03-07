@@ -80,12 +80,12 @@ Docker macvlan driver for swarmkit.
 PKG_DIR=%{_pkgdir} ./make.sh
 
 %check
-./docker-macvlan-%{_origversion} -v
+./docker-macvlan -v
 
 %install
 # install binary
 install -d $RPM_BUILD_ROOT/%{_bindir}
-install -p -m 755 ./docker-macvlan-%{_origversion} $RPM_BUILD_ROOT/%{_bindir}/docker-macvlan
+install -p -m 755 ./docker-macvlan $RPM_BUILD_ROOT/%{_bindir}/docker-macvlan
 
 #install service
 install -d $RPM_BUILD_ROOT/%{_unitdir}
