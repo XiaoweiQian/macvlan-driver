@@ -9,6 +9,8 @@ import (
 )
 
 const url = "http://localhost:6732/v1.25"
+const driver = "172.19.146.181:5000/macvlan_swarm:latest"
+const device = "bond1"
 
 func initNetwork(t *testing.T) (string, map[string]interface{}) {
 	time.Sleep(1 * time.Second)
@@ -16,7 +18,7 @@ func initNetwork(t *testing.T) (string, map[string]interface{}) {
 	net := map[string]interface{}{
 		"Name":           "macvlan_test",
 		"CheckDuplicate": true,
-		"Driver":         "macvlan_swarm",
+		"Driver":         driver,
 		"EnableIPv6":     false,
 		"IPAM": map[string]interface{}{
 			"Driver": "default",
@@ -29,7 +31,7 @@ func initNetwork(t *testing.T) (string, map[string]interface{}) {
 		},
 		"Internal": false,
 		"Options": map[string]interface{}{
-			"parent":       "eth0.99",
+			"parent":       device + ".99",
 			"macvlan_mode": "bridge",
 		},
 		"Labels": map[string]interface{}{},
@@ -47,7 +49,7 @@ func initNetwork2(t *testing.T) (string, map[string]interface{}) {
 	net := map[string]interface{}{
 		"Name":           "macvlan_test2",
 		"CheckDuplicate": true,
-		"Driver":         "macvlan_swarm",
+		"Driver":         driver,
 		"EnableIPv6":     false,
 		"IPAM": map[string]interface{}{
 			"Driver": "default",
@@ -60,7 +62,7 @@ func initNetwork2(t *testing.T) (string, map[string]interface{}) {
 		},
 		"Internal": false,
 		"Options": map[string]interface{}{
-			"parent":       "eth0.100",
+			"parent":       device + ".100",
 			"macvlan_mode": "bridge",
 		},
 		"Labels": map[string]interface{}{},
@@ -79,7 +81,7 @@ func TestCreateAndDeleteNetwork(t *testing.T) {
 		e.DELETE("/networks/" + id).Expect().Status(http.StatusNoContent).NoContent()
 	}()
 	res := e.GET("/networks/" + id).Expect().Status(http.StatusOK).JSON().Object()
-	res.Value("Driver").String().Equal("macvlan_swarm")
+	res.Value("Driver").String().Equal(driver)
 }
 
 func TestCreateNetworkWithDuplicateName(t *testing.T) {
@@ -116,8 +118,10 @@ func TestCreateNetworkWithDuplicateParent(t *testing.T) {
 	ipam := net["IPAM"].(map[string]interface{})
 	sub := ipam["Config"].([]interface{})[0].(map[string]interface{})
 	sub["Subnet"] = "192.168.1.0/24"
-	e.POST("/networks/create").WithJSON(net).
-		Expect().Status(http.StatusInternalServerError)
+	obj := e.POST("/networks/create").WithJSON(net).
+		Expect().Status(http.StatusCreated).JSON().Object()
+	id1 := obj.Value("Id").String().Raw()
+	e.DELETE("/networks/" + id1).Expect().Status(http.StatusNoContent).NoContent()
 }
 
 func TestCreateNetworkWithInvalidParent(t *testing.T) {
@@ -131,7 +135,9 @@ func TestCreateNetworkWithInvalidParent(t *testing.T) {
 	sub := ipam["Config"].([]interface{})[0].(map[string]interface{})
 	sub["Subnet"] = "192.168.1.0/24"
 	opts := net["Options"].(map[string]interface{})
-	opts["parent"] = "eth0:20"
-	e.POST("/networks/create").WithJSON(net).
-		Expect().Status(http.StatusInternalServerError)
+	opts["parent"] = device + ":20"
+	obj := e.POST("/networks/create").WithJSON(net).
+		Expect().Status(http.StatusCreated).JSON().Object()
+	id1 := obj.Value("Id").String().Raw()
+	e.DELETE("/networks/" + id1).Expect().Status(http.StatusNoContent).NoContent()
 }

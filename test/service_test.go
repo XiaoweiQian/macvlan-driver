@@ -8,12 +8,14 @@ import (
 	"github.com/gavv/httpexpect"
 )
 
+const image = "172.19.146.181:5000/nginx:latest"
+
 func initService() map[string]interface{} {
 	service := map[string]interface{}{
 		"Name": "service_test",
 		"TaskTemplate": map[string]interface{}{
 			"ContainerSpec": map[string]interface{}{
-				"Image": "nginx:latest",
+				"Image": image,
 				//"Mounts": []interface{}{
 				//	map[string]interface{}{},
 				//},
