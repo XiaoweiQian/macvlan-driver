@@ -10,7 +10,7 @@ import (
 
 const url = "http://localhost:6732/v1.25"
 const driver = "172.19.146.181:5000/macvlan_swarm:latest"
-const device = "bond1"
+const device = "eth0"
 
 func initNetwork(t *testing.T) (string, map[string]interface{}) {
 	time.Sleep(1 * time.Second)
@@ -118,10 +118,8 @@ func TestCreateNetworkWithDuplicateParent(t *testing.T) {
 	ipam := net["IPAM"].(map[string]interface{})
 	sub := ipam["Config"].([]interface{})[0].(map[string]interface{})
 	sub["Subnet"] = "192.168.1.0/24"
-	obj := e.POST("/networks/create").WithJSON(net).
-		Expect().Status(http.StatusCreated).JSON().Object()
-	id1 := obj.Value("Id").String().Raw()
-	e.DELETE("/networks/" + id1).Expect().Status(http.StatusNoContent).NoContent()
+	e.POST("/networks/create").WithJSON(net).
+		Expect().Status(http.StatusInternalServerError)
 }
 
 func TestCreateNetworkWithInvalidParent(t *testing.T) {
@@ -136,8 +134,6 @@ func TestCreateNetworkWithInvalidParent(t *testing.T) {
 	sub["Subnet"] = "192.168.1.0/24"
 	opts := net["Options"].(map[string]interface{})
 	opts["parent"] = device + ":20"
-	obj := e.POST("/networks/create").WithJSON(net).
-		Expect().Status(http.StatusCreated).JSON().Object()
-	id1 := obj.Value("Id").String().Raw()
-	e.DELETE("/networks/" + id1).Expect().Status(http.StatusNoContent).NoContent()
+	e.POST("/networks/create").WithJSON(net).
+		Expect().Status(http.StatusInternalServerError)
 }

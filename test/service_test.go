@@ -85,6 +85,23 @@ func TestCreateAndDeleteService(t *testing.T) {
 	e.GET("/tasks").WithQueryString(filter).Expect().Status(http.StatusOK).JSON().Array().Length().Equal(3)
 }
 
+func TestCreateServiceWithDuplicateName(t *testing.T) {
+	nid, _ := initNetwork(t)
+	s := initService()
+	e := httpexpect.New(t, url)
+	defer func() {
+		e.DELETE("/networks/" + nid).Expect().Status(http.StatusNoContent).NoContent()
+	}()
+	obj := e.POST("/services/create").WithJSON(s).
+		Expect().Status(http.StatusCreated).JSON().Object()
+	id := obj.Value("ID").String().Raw()
+	defer func() {
+		e.DELETE("/services/" + id).Expect().Status(http.StatusOK)
+	}()
+	e.POST("/services/create").WithJSON(s).Expect().Status(http.StatusConflict)
+
+}
+
 func TestCreateServiceWithVip(t *testing.T) {
 	nid, _ := initNetwork(t)
 	s := initService()

@@ -14,10 +14,10 @@ compile:
 	@docker cp tmp:/go/bin/macvlan-driver ./docker-macvlan
 	@docker rm -vf tmp
 	@docker rmi builder
-	@echo "### docker build: rootfs image with docker-macvlan"
-	@docker build -q -t ${PLUGIN_NAME}:rootfs .
 
 rootfs:
+	@echo "### docker build: rootfs image with docker-macvlan"
+	@docker build -q -t ${PLUGIN_NAME}:rootfs .
 	@echo "### create rootfs directory in ./plugin/rootfs"
 	@mkdir -p ./plugin/rootfs
 	@docker create --name tmp ${PLUGIN_NAME}:rootfs
@@ -25,6 +25,7 @@ rootfs:
 	@echo "### copy config.json to ./plugin/"
 	@cp config.json ./plugin/
 	@docker rm -vf tmp
+	@docker rmi ${PLUGIN_NAME}:rootfs 
 
 create:
 	@echo "### remove existing plugin ${PLUGIN_NAME} if exists"
