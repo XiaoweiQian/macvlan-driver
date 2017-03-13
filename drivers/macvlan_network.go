@@ -5,7 +5,6 @@ import (
 	"net"
 
 	"github.com/Sirupsen/logrus"
-	"github.com/docker/docker/pkg/parsers/kernel"
 	"github.com/docker/docker/pkg/stringid"
 	pluginNet "github.com/docker/go-plugins-helpers/network"
 	"github.com/docker/libnetwork/netlabel"
@@ -19,20 +18,6 @@ import (
 // CreateNetwork the network for the specified driver type
 func (d *Driver) CreateNetwork(r *pluginNet.CreateNetworkRequest) error {
 	defer osl.InitOSContext()()
-
-	kv, err := kernel.GetKernelVersion()
-	if err != nil {
-		str := fmt.Sprintf("failed to check kernel version for %s driver support: %v", macvlanType, err)
-		logrus.Errorf(str)
-		return fmt.Errorf(str)
-	}
-	// ensure Kernel version is >= v3.9 for macvlan support
-	if kv.Kernel < macvlanKernelVer || (kv.Kernel == macvlanKernelVer && kv.Major < macvlanMajorVer) {
-		str := fmt.Sprintf("kernel version failed to meet the minimum macvlan kernel requirement of %d.%d, found %d.%d.%d",
-			macvlanKernelVer, macvlanMajorVer, kv.Kernel, kv.Major, kv.Minor)
-		logrus.Errorf(str)
-		return fmt.Errorf(str)
-	}
 
 	id := r.NetworkID
 	opts := r.Options

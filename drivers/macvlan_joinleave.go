@@ -27,20 +27,6 @@ func (d *Driver) Join(r *pluginNet.JoinRequest) (*pluginNet.JoinResponse, error)
 		logrus.Errorf(str)
 		return nil, fmt.Errorf(str)
 	}
-	// generate a name for the iface that will be renamed to eth0 in the sbox
-	containerIfName, err := netutils.GenerateIfaceName(ns.NlHandle(), vethPrefix, vethLen)
-	if err != nil {
-		str := fmt.Sprintf("error generating an interface name: %s", err)
-		logrus.Errorf(str)
-		return nil, fmt.Errorf(str)
-	}
-	// create the netlink macvlan interface
-	vethName, err := createMacVlan(containerIfName, n.config.Parent, n.config.MacvlanMode)
-	if err != nil {
-		str := fmt.Sprintf("Join: createMacVlan error: %s", err)
-		logrus.Errorf(str)
-		return nil, fmt.Errorf(str)
-	}
 
 	// parse and match the endpoint address with the available v4 subnets
 	var v4gwStr, v6gwStr string
@@ -75,6 +61,22 @@ func (d *Driver) Join(r *pluginNet.JoinRequest) (*pluginNet.JoinResponse, error)
 		logrus.Infof("Macvlan Endpoint Joined with IPv6_Addr: %s Gateway: %s MacVlan_Mode: %s, Parent: %s",
 			ep.addrv6.IP.String(), v6gw.String(), n.config.MacvlanMode, n.config.Parent)
 	}
+
+	// generate a name for the iface that will be renamed to eth0 in the sbox
+	containerIfName, err := netutils.GenerateIfaceName(ns.NlHandle(), vethPrefix, vethLen)
+	if err != nil {
+		str := fmt.Sprintf("error generating an interface name: %s", err)
+		logrus.Errorf(str)
+		return nil, fmt.Errorf(str)
+	}
+	// create the netlink macvlan interface
+	vethName, err := createMacVlan(containerIfName, n.config.Parent, n.config.MacvlanMode)
+	if err != nil {
+		str := fmt.Sprintf("Join: createMacVlan error: %s", err)
+		logrus.Errorf(str)
+		return nil, fmt.Errorf(str)
+	}
+
 	if err := d.store.StoreUpdate(ep); err != nil {
 		str := fmt.Sprintf("failed to save macvlan endpoint %s to store: %v", ep.id[0:7], err)
 		logrus.Errorf(str)
@@ -122,6 +124,9 @@ func (d *Driver) Leave(r *pluginNet.LeaveRequest) error {
 
 // getSubnetforIP returns the ipv4 subnet to which the given IP belongs
 func (n *network) getSubnetforIPv4(ip *net.IPNet) *ipv4Subnet {
+	if ip == nil {
+		return nil
+	}
 	for _, s := range n.config.Ipv4Subnets {
 		_, snet, err := net.ParseCIDR(s.SubnetIP)
 		if err != nil {
@@ -143,6 +148,9 @@ func (n *network) getSubnetforIPv4(ip *net.IPNet) *ipv4Subnet {
 
 // getSubnetforIPv6 returns the ipv6 subnet to which the given IP belongs
 func (n *network) getSubnetforIPv6(ip *net.IPNet) *ipv6Subnet {
+	if ip == nil {
+		return nil
+	}
 	for _, s := range n.config.Ipv6Subnets {
 		_, snet, err := net.ParseCIDR(s.SubnetIP)
 		if err != nil {

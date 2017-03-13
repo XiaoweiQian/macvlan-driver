@@ -108,6 +108,7 @@ func TestAllocateNetworkWithInvalidSubnet(t *testing.T) {
 	assert.Nil(t, res)
 	assert.EqualError(t, err, "ipv4 pool is empty")
 }
+
 func TestAllocateNetworkWithInvalidID(t *testing.T) {
 	_, d, r, _ := initData()
 	r.NetworkID = ""

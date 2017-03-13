@@ -78,13 +78,14 @@ func TestCreateNetworkWithVlan(t *testing.T) {
 	n.config.CreatedSlaveLink = true
 	n.config.Parent = "eth0.10"
 	err := d.CreateNetwork(r)
+	defer func() {
+		if link, err := ns.NlHandle().LinkByName(n.config.Parent); err == nil {
+			ns.NlHandle().LinkDel(link)
+		}
+	}()
 	assert.Nil(t, err)
 	assert.NotEmpty(t, d.networks[r.NetworkID])
 	assert.EqualValues(t, n, d.networks[r.NetworkID])
-	if link, err := ns.NlHandle().LinkByName(n.config.Parent); err == nil {
-		ns.NlHandle().LinkDel(link)
-	}
-
 }
 
 func TestCreateNetworkWithInternal(t *testing.T) {
@@ -96,13 +97,30 @@ func TestCreateNetworkWithInternal(t *testing.T) {
 	n.config.Internal = true
 	n.config.Parent = "dm-1"
 	err := d.CreateNetwork(r)
+	defer func() {
+		if link, err := ns.NlHandle().LinkByName(n.config.Parent); err == nil {
+			ns.NlHandle().LinkDel(link)
+		}
+	}()
 	assert.Nil(t, err)
 	assert.NotEmpty(t, d.networks[r.NetworkID])
 	assert.EqualValues(t, n, d.networks[r.NetworkID])
-	if link, err := ns.NlHandle().LinkByName(n.config.Parent); err == nil {
-		ns.NlHandle().LinkDel(link)
-	}
+}
 
+func TestCreateNetworkWithInvalidID(t *testing.T) {
+	_, d, r, _ := initNetworkData()
+	r.NetworkID = ""
+	err := d.CreateNetwork(r)
+	assert.NotNil(t, err)
+	assert.EqualError(t, err, "invalid network id")
+}
+
+func TestCreateNetworkWithInvalidSubnet(t *testing.T) {
+	_, d, r, _ := initNetworkData()
+	r.IPv4Data[0].Pool = "0.0.0.0/0"
+	err := d.CreateNetwork(r)
+	assert.NotNil(t, err)
+	assert.EqualError(t, err, "ipv4 pool is empty")
 }
 
 func TestDeleteNetworkWithVlan(t *testing.T) {

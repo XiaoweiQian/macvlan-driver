@@ -84,6 +84,57 @@ func TestCreateEndpointWithErr(t *testing.T) {
 	assert.EqualError(t, err, "failed to save macvlan endpoint 1234567 to store: error")
 }
 
+func TestCreateEndpointWithInvalidNetworkId(t *testing.T) {
+	ms, d, r, ep := initEndpointData()
+	r.NetworkID = ""
+	ms.On("StoreUpdate", ep).Return(nil)
+	res, err := d.CreateEndpoint(r)
+	assert.NotNil(t, err)
+	assert.Nil(t, res)
+	assert.EqualError(t, err, "invalid network id passed while create macvlan endpoint")
+}
+
+func TestCreateEndpointWithInvalidEndpointId(t *testing.T) {
+	ms, d, r, ep := initEndpointData()
+	r.EndpointID = ""
+	ms.On("StoreUpdate", ep).Return(nil)
+	res, err := d.CreateEndpoint(r)
+	assert.NotNil(t, err)
+	assert.Nil(t, res)
+	assert.EqualError(t, err, "invalid endpoint id passed while create macvlan endpoint")
+}
+
+func TestCreateEndpointWithInvalidInterface(t *testing.T) {
+	ms, d, r, ep := initEndpointData()
+	r.Interface = nil
+	ms.On("StoreUpdate", ep).Return(nil)
+	res, err := d.CreateEndpoint(r)
+	assert.NotNil(t, err)
+	assert.Nil(t, res)
+	assert.EqualError(t, err, "invalid interface passed while create macvlan endpoint")
+}
+
+func TestCreateEndpointWithNetworkNotFound(t *testing.T) {
+	ms, d, r, ep := initEndpointData()
+	r.NetworkID = "2"
+	ms.On("StoreUpdate", ep).Return(nil)
+	res, err := d.CreateEndpoint(r)
+	assert.NotNil(t, err)
+	assert.Nil(t, res)
+	assert.EqualError(t, err, "macvlan network with id 2 not found")
+}
+
+func TestCreateEndpointWithIPNil(t *testing.T) {
+	ms, d, r, ep := initEndpointData()
+	r.NetworkID = "1"
+	r.Interface.Address = ""
+	ms.On("StoreUpdate", ep).Return(nil)
+	res, err := d.CreateEndpoint(r)
+	assert.NotNil(t, err)
+	assert.Nil(t, res)
+	assert.EqualError(t, err, "create endpoint was not passed interface IP address")
+}
+
 func TestDeleteEndpointWithOK(t *testing.T) {
 	ms, d, r, ep := initEndpointData()
 	d.networks[r.NetworkID].endpoints[r.EndpointID] = ep
