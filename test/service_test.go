@@ -70,6 +70,7 @@ func TestCreateAndDeleteService(t *testing.T) {
 	s := initService()
 	e := httpexpect.New(t, url)
 	defer func() {
+		time.Sleep(2 * time.Second)
 		e.DELETE("/networks/" + nid).Expect().Status(http.StatusNoContent).NoContent()
 	}()
 	obj := e.POST("/services/create").WithJSON(s).
@@ -90,6 +91,7 @@ func TestCreateServiceWithDuplicateName(t *testing.T) {
 	s := initService()
 	e := httpexpect.New(t, url)
 	defer func() {
+		time.Sleep(2 * time.Second)
 		e.DELETE("/networks/" + nid).Expect().Status(http.StatusNoContent).NoContent()
 	}()
 	obj := e.POST("/services/create").WithJSON(s).
@@ -108,6 +110,7 @@ func TestCreateServiceWithVip(t *testing.T) {
 	s["EndpointSpec"].(map[string]interface{})["mode"] = "vip"
 	e := httpexpect.New(t, url)
 	defer func() {
+		time.Sleep(2 * time.Second)
 		e.DELETE("/networks/" + nid).Expect().Status(http.StatusNoContent).NoContent()
 	}()
 	obj := e.POST("/services/create").WithJSON(s).
@@ -132,6 +135,7 @@ func TestCreateServiceWithGlobal(t *testing.T) {
 	}
 	e := httpexpect.New(t, url)
 	defer func() {
+		time.Sleep(2 * time.Second)
 		e.DELETE("/networks/" + nid).Expect().Status(http.StatusNoContent).NoContent()
 	}()
 	obj := e.POST("/services/create").WithJSON(s).
@@ -161,6 +165,7 @@ func TestCreateServiceWith2Network(t *testing.T) {
 	}
 	e := httpexpect.New(t, url)
 	defer func() {
+		time.Sleep(2 * time.Second)
 		e.DELETE("/networks/" + nid1).Expect().Status(http.StatusNoContent).NoContent()
 		e.DELETE("/networks/" + nid2).Expect().Status(http.StatusNoContent).NoContent()
 	}()

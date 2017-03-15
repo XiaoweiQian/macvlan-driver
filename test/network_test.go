@@ -10,7 +10,7 @@ import (
 
 const url = "http://localhost:6732/v1.25"
 const driver = "172.19.146.181:5000/macvlan_swarm:latest"
-const device = "eth0"
+const device = "ens32"
 
 func initNetwork(t *testing.T) (string, map[string]interface{}) {
 	time.Sleep(1 * time.Second)
